@@ -212,6 +212,15 @@ app.post('/api/v1/setPaymentPassword', (req, res) => {
 
 });
 
+// ================= API V1 ROOT =================
+
+app.get('/api/v1', (req, res) => {
+  res.json({
+    status: "success",
+    message: "BEST-TV PRO API V1 is READY"
+  });
+});
+
 // ================= HOME ROUTE =================
 
 app.get('/', (req, res) => {
@@ -282,3 +291,4 @@ server.listen(port, '0.0.0.0', () => {
     console.log(`Server is LIVE on port ${port}`);
 
 });
+
