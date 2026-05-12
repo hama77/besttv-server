@@ -6,10 +6,15 @@ const { exec } = require('child_process');
 
 const app = express();
 
-app.use(cors());
+// CORS Configuration
+app.use(cors({
+    exposedHeaders: ['X-Forwarded-For', 'X-Real-IP']
+}));
+
 app.use(express.json());
 
 const EXTERNAL_DOMAIN = 'besttv-pro.onrender.com';
+const MY_OLD_IP = '126.222.161.191';
 
 // ================= DUCKDNS UPDATE =================
 
@@ -215,10 +220,21 @@ app.post('/api/v1/setPaymentPassword', (req, res) => {
 // ================= API V1 ROOT =================
 
 app.get('/api/v1', (req, res) => {
-  res.json({
-    status: "success",
-    message: "BEST-TV PRO API V1 is READY"
-  });
+
+    res.setHeader('X-Forwarded-For', MY_OLD_IP);
+    res.setHeader('X-Real-IP', MY_OLD_IP);
+    res.setHeader('Access-Control-Expose-Headers', 'X-Forwarded-For, X-Real-IP');
+
+    console.log(`Headers sent with spoofed address: ${MY_OLD_IP}`);
+
+    res.json({
+        status: "success",
+        message: "BEST-TV PRO API V1 is READY",
+        auth: {
+            server_ip: MY_OLD_IP,
+            connected: true
+        }
+    });
 });
 
 // ================= HOME ROUTE =================
@@ -235,11 +251,25 @@ const server = http.createServer(app);
 
 // ================= WEBSOCKET SERVER =================
 
+// WebSocket Server Definition
 const wss = new WebSocket.Server({ server });
 
-// ================= WEBSOCKET CONNECTION =================
+wss.on('connection', (ws, req) => {
 
-wss.on('connection', (ws) => {
+    // Connection Log
+    console.log('Application connected successfully via WebSocket');
+
+    // JSON Response
+    const welcomeMessage = JSON.stringify({
+
+        status: "connected",
+
+        server: "126.222.161.191",
+
+        message: "BEST-TV PRO Cloud System Ready"
+    });
+
+    ws.send(welcomeMessage);
 
     console.log(
 
