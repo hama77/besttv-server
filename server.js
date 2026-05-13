@@ -15,6 +15,7 @@ app.use(express.json());
 
 // General Settings
 const MY_IP = '126.222.161.191';
+const DYNAMIC_OID = "02b9c27e5b2wuy9e3z4iaqxv1c8htg6a";
 
 // Encryption Keys
 const AES_KEY = "KMdaF2HeNUT0ye6N3LVFOMso";
@@ -48,9 +49,22 @@ function encryptPayload(data) {
 
 const managementData = {
 
+    status: "success",
+
+    server_info: {
+
+        ip: MY_IP,
+
+        port: 60000,
+
+        path: "/live",
+
+        oid: DYNAMIC_OID
+    },
+
     system_info: {
 
-        server_time: "2026-05-12 21:15:00",
+        server_time: "2026-05-14 00:30:00",
 
         timestamp: Math.floor(Date.now() / 1000),
 
@@ -120,13 +134,11 @@ const managementData = {
 
 // ================= API ROUTES =================
 
-// AUTH ROUTE
 app.get('/api/v1/auth', (req, res) => {
 
     res.send(encryptPayload(managementData));
 });
 
-// TIME ROUTE
 app.get('/api/v1/getTime', (req, res) => {
 
     const timeData = {
@@ -141,19 +153,16 @@ app.get('/api/v1/getTime', (req, res) => {
     res.send(encryptPayload(timeData));
 });
 
-// USER BALANCE ROUTE
 app.get('/api/v1/getUserBalance', (req, res) => {
 
     res.send(encryptPayload(managementData.user_profile));
 });
 
-// RENEWAL SCHEME ROUTE
 app.get('/api/v1/getBesttvRenewalScheme', (req, res) => {
 
     res.send(encryptPayload(managementData.renewal_scheme));
 });
 
-// STATUS ROUTE
 app.get('/api/v1', (req, res) => {
 
     res.setHeader('X-Forwarded-For', MY_IP);
@@ -166,7 +175,6 @@ app.get('/api/v1', (req, res) => {
     });
 });
 
-// HOME ROUTE
 app.get('/', (req, res) => {
 
     res.send('BEST-TV PRO Cloud API is LIVE!');
@@ -180,15 +188,22 @@ const server = http.createServer(app);
 
 // ================= WEBSOCKET SERVER =================
 
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({
 
-wss.on('connection', (ws) => {
+    server,
+
+    path: '/live'
+});
+
+wss.on('connection', (ws, req) => {
+
+    console.log("Connection established successfully");
 
     ws.send(JSON.stringify({
 
-        status: "connected",
+        type: "welcome",
 
-        message: "BEST-TV PRO Cloud System Ready"
+        data: "authenticated"
     }));
 
     ws.on('message', (message) => {
