@@ -6,6 +6,7 @@ const crypto = require('crypto');
 
 const app = express();
 
+// CORS Configuration
 app.use(cors({
     origin: '*',
     exposedHeaders: ['X-Forwarded-For', 'X-Real-IP']
@@ -13,27 +14,133 @@ app.use(cors({
 
 app.use(express.json());
 
-// GENERAL SETTINGS
-const MY_IP = process.env.MY_IP || '126.222.161.191';
+// General Settings
+const MY_IP = '126.222.161.191';
 const BASE_URL = 'https://besttv-424r.vercel.app';
-const DYNAMIC_OID = crypto.randomBytes(16).toString('hex');
+const DYNAMIC_OID = '02b9c27e5b2wuy9e3z4iaqxv1c8htg6a';
 
-// AES SETTINGS (AES-192)
+// AES-192 Settings (Refactored based on latest commit)
 const AES_SECRET = 'KMdaF2HeNUT0ye6N3LVFOMso';
-
-const AES_KEY = crypto
-    .createHash('sha256')
-    .update(AES_SECRET)
-    .digest()
-    .slice(0, 24);
-
+const AES_KEY = crypto.createHash('sha256').update(AES_SECRET).digest().slice(0, 24);
 const AES_IV = Buffer.alloc(16, 0);
 
-// TIME
+// Server Time Generator
 function getCurrentServerTime() {
-    return new Date().toISOString().replace('T', ' ').replace(/\..+/, '');
+    return new Date()
+        .toISOString()
+        .replace('T', ' ')
+        .replace(/\..+/, '');
 }
 
+// Encryption Logic
+function encryptPayload(data) {
+    try {
+        const payload = JSON.stringify(data);
+        const cipher = crypto.createCipheriv('aes-192-cbc', AES_KEY, AES_IV);
+        let encrypted = cipher.update(payload, 'utf8', 'base64');
+        encrypted += cipher.final('base64');
+        return encrypted;
+    } catch (error) {
+        console.error('Encryption Error:', error.message);
+        return '';
+    }
+}
+
+// Response Helper
+function sendEncrypted(res, data) {
+    try {
+        const encrypted = encryptPayload(data);
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(200).send(encrypted);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ status: false, error: 'Internal Error' });
+    }
+}
+
+// Data Structure
+function getManagementData() {
+    return {
+        status: 'success',
+        server_info: { 
+            ip: MY_IP, 
+            port: 60000, 
+            path: '/live', 
+            oid: DYNAMIC_OID 
+        },
+        system_info: { 
+            server_time: getCurrentServerTime(), 
+            timestamp: Math.floor(Date.now() / 1000), 
+            timezone: 'Africa/Tunis' 
+        },
+        user_profile: { 
+            user_id: '9123456780', 
+            balance: '100.00', 
+            currency: 'TND', 
+            subscription_type: 'Premium', 
+            expiry_date: '2027-01-01', 
+            status: 'active' 
+        },
+        app_settings: { 
+            maintenance_mode: false, 
+            force_update: false, 
+            min_version: '3.0.0', 
+            announcement: 'Welcome to BEST-TV PRO' 
+        },
+        api_endpoints: {
+            'X-API-Time': `${BASE_URL}/api/v1/getTime`,
+            'X-API-Balance': `${BASE_URL}/api/v1/getUserBalance`,
+            'X-API-Scheme': `${BASE_URL}/api/v1/getBesttvRenewalScheme`,
+            'X-API-Order': `${BASE_URL}/api/v1/payBesttvOrderXX`,
+            'X-API-Password': `${BASE_URL}/api/v1/setPaymentPassword`
+        }
+    };
+}
+
+// API Routes
+app.get('/api/v1/auth', (req, res) => {
+    sendEncrypted(res, { 
+        code: 200, 
+        msg: 'OK', 
+        data: { server: getManagementData() } 
+    });
+});
+
+app.get('/api/v1/getTime', (req, res) => {
+    sendEncrypted(res, { 
+        server_time: getCurrentServerTime(), 
+        timestamp: Math.floor(Date.now() / 1000) 
+    });
+});
+
+app.get('/api/v1/getUserBalance', (req, res) => {
+    sendEncrypted(res, getManagementData().user_profile);
+});
+
+app.get('/', (req, res) => {
+    res.send('BEST-TV PRO Cloud API is LIVE!');
+});
+
+// Server Initialization
+const port = process.env.PORT || 60000;
+const server = http.createServer(app);
+
+// WebSocket Implementation
+const wss = new WebSocket.Server({ server, path: '/live' });
+
+wss.on('connection', (ws) => {
+    console.log('WS Connection established');
+    ws.send(JSON.stringify({ type: 'welcome', data: 'authenticated' }));
+    
+    ws.on('message', (message) => {
+        ws.send(JSON.stringify({ status: true, echo: message.toString() }));
+    });
+});
+
+server.listen(port, '0.0.0.0', () => {
+    console.log(`Server running on port ${port}`);
+});
 // ENCRYPTION
 function encryptPayload(data) {
     try {
