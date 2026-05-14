@@ -6,34 +6,60 @@ const crypto = require('crypto');
 
 const app = express();
 
-// CORS Configuration
-app.use(cors({
-    origin: '*',
-    exposedHeaders: ['X-Forwarded-For', 'X-Real-IP']
-}));
-
+app.use(cors({ origin: '*', exposedHeaders: ['X-Forwarded-For', 'X-Real-IP'] }));
 app.use(express.json());
 
-// General Settings
+// Settings from your latest successful logic
 const MY_IP = '126.222.161.191';
 const BASE_URL = 'https://besttv-424r.vercel.app';
 const DYNAMIC_OID = '02b9c27e5b2wuy9e3z4iaqxv1c8htg6a';
 
-// AES-192 Settings (Optimized for Render)
+// Fixed AES-192 Settings (Optimized for Render & App Compatibility)
 const AES_SECRET = 'KMdaF2HeNUT0ye6N3LVFOMso';
 const AES_KEY = crypto.createHash('sha256').update(AES_SECRET).digest().slice(0, 24);
 const AES_IV = Buffer.alloc(16, 0);
 
-// Server Time Generator
 function getCurrentServerTime() {
-    return new Date()
-        .toISOString()
-        .replace('T', ' ')
-        .replace(/\..+/, '');
+    return new Date().toISOString().replace('T', ' ').replace(/\..+/, '');
 }
 
-// Encryption Logic
 function encryptPayload(data) {
+    try {
+        const payload = JSON.stringify(data);
+        const cipher = crypto.createCipheriv('aes-192-cbc', AES_KEY, AES_IV);
+        let encrypted = cipher.update(payload, 'utf8', 'base64');
+        encrypted += cipher.final('base64');
+        return encrypted;
+    } catch (error) {
+        return '';
+    }
+}
+
+function sendEncrypted(res, data) {
+    const encrypted = encryptPayload(data);
+    res.setHeader('Content-Type', 'text/plain');
+    res.status(200).send(encrypted);
+}
+
+// API Endpoints
+app.get('/api/v1/auth', (req, res) => {
+    const data = {
+        status: 'success',
+        system_info: { server_time: getCurrentServerTime() },
+        user_profile: { user_id: '9123456780', balance: '100.00' },
+        api_endpoints: {
+            'X-API-Time': `${BASE_URL}/api/v1/getTime`,
+            'X-API-Balance': `${BASE_URL}/api/v1/getUserBalance`
+        }
+    };
+    sendEncrypted(res, data);
+});
+
+app.get('/', (req, res) => res.send('BEST-TV PRO API is Live and Compatible!'));
+
+const port = process.env.PORT || 60000;
+const server = http.createServer(app);
+server.listen(port, '0.0.0.0', () => console.log(`Running on ${port}`));
     try {
         const payload = JSON.stringify(data);
         const cipher = crypto.createCipheriv('aes-192-cbc', AES_KEY, AES_IV);
