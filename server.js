@@ -6,76 +6,87 @@ const crypto = require('crypto');
 
 const app = express();
 
-// CORS Configuration
+// ================= CORS =================
+
 app.use(cors({
-    exposedHeaders: ['X-Forwarded-For', 'X-Real-IP']
+    origin: '*',
+    exposedHeaders: [
+        'X-Forwarded-For',
+        'X-Real-IP'
+    ]
 }));
 
 app.use(express.json());
 
-// General Settings
+// ================= GENERAL SETTINGS =================
+
 const MY_IP = '126.222.161.191';
-const DYNAMIC_OID = "02b9c27e5b2wuy9e3z4iaqxv1c8htg6a";
 
-// Encryption Keys
-const AES_KEY = "KMdaF2HeNUT0ye6N3LVFOMso";
-const AES_IV  = "45760761";
+const BASE_URL =
+    'https://besttv-424r.vercel.app';
 
-// Current Server Time Generator
+const DYNAMIC_OID =
+    '02b9c27e5b2wuy9e3z4iaqxv1c8htg6a';
+
+// ================= AES SETTINGS =================
+
+// AES-192 requires 24-byte key
+
+const AES_SECRET =
+    'KMdaF2HeNUT0ye6N3LVFOMso';
+
+const AES_KEY = crypto
+    .createHash('sha256')
+    .update(AES_SECRET)
+    .digest()
+    .slice(0, 24);
+
+// Stable 16-byte IV
+
+const AES_IV = Buffer.alloc(16, 0);
+
+// ================= TIME =================
+
 function getCurrentServerTime() {
 
-    const now = new Date();
-
-    return now
+    return new Date()
         .toISOString()
-        .replace(/T/, ' ')
+        .replace('T', ' ')
         .replace(/\..+/, '');
 }
 
-// Encryption Function
+// ================= ENCRYPTION =================
+
 function encryptPayload(data) {
 
     try {
 
-        const payload = JSON.stringify(data);
+        const payload =
+            JSON.stringify(data);
 
-        // Official AES-192 key generation
-        const keyBuffer = crypto.scryptSync(
-            AES_KEY,
-            'besttv-secure-salt',
-            24
-        );
+        const cipher =
+            crypto.createCipheriv(
+                'aes-192-cbc',
+                AES_KEY,
+                AES_IV
+            );
 
-        // Stable 16-byte IV
-        const ivBuffer = Buffer.alloc(16);
+        let encrypted =
+            cipher.update(
+                payload,
+                'utf8',
+                'base64'
+            );
 
-        Buffer.from(
-            AES_IV,
-            'utf8'
-        ).copy(ivBuffer);
-
-        const cipher = crypto.createCipheriv(
-            'aes-192-cbc',
-            keyBuffer,
-            ivBuffer
-        );
-
-        let encrypted = cipher.update(
-            payload,
-            'utf8',
-            'base64'
-        );
-
-        encrypted += cipher.final(
-            'base64'
-        );
+        encrypted +=
+            cipher.final('base64');
 
         return encrypted;
 
     } catch (error) {
 
         console.error(
-            "Encryption Error:",
+            'Encryption Error:',
             error.message
         );
 
@@ -83,13 +94,53 @@ function encryptPayload(data) {
     }
 }
 
+// ================= RESPONSE HELPER =================
+
+function sendEncrypted(res, data) {
+
+    try {
+
+        const encrypted =
+            encryptPayload(data);
+
+        res.setHeader(
+            'Content-Type',
+            'text/plain'
+        );
+
+        res.setHeader(
+            'Cache-Control',
+            'no-store'
+        );
+
+        res.setHeader(
+            'Server',
+            'nginx'
+        );
+
+        res.status(200).send(encrypted);
+
+    } catch (error) {
+
+        console.error(error);
+
+        res.status(500).json({
+
+            status: false,
+
+            error:
+                'Encryption Failed'
+        });
+    }
+}
+
 // ================= MANAGEMENT DATA =================
 
-const getManagementData = () => {
+function getManagementData() {
 
     return {
 
-        status: "success",
+        status: 'success',
 
         server_info: {
 
@@ -97,128 +148,210 @@ const getManagementData = () => {
 
             port: 60000,
 
-            path: "/live",
+            path: '/live',
 
             oid: DYNAMIC_OID
         },
 
         system_info: {
 
-            server_time: getCurrentServerTime(),
+            server_time:
+                getCurrentServerTime(),
 
-            timestamp: Math.floor(Date.now() / 1000),
+            timestamp:
+                Math.floor(Date.now() / 1000),
 
-            timezone: "Africa/Tunis"
+            timezone:
+                'Africa/Tunis'
         },
 
         user_profile: {
 
-            user_id: "9123456780",
+            user_id:
+                '9123456780',
 
-            balance: "100.00",
+            balance:
+                '100.00',
 
-            currency: "TND",
+            currency:
+                'TND',
 
-            subscription_type: "Premium",
+            subscription_type:
+                'Premium',
 
-            expiry_date: "2027-01-01",
+            expiry_date:
+                '2027-01-01',
 
-            status: "active"
+            status:
+                'active'
         },
 
         app_settings: {
 
-            maintenance_mode: false,
+            maintenance_mode:
+                false,
 
-            force_update: false,
+            force_update:
+                false,
 
-            min_version: "3.0.0",
+            min_version:
+                '3.0.0',
 
-            announcement: "Welcome to BEST-TV PRO"
+            announcement:
+                'Welcome to BEST-TV PRO'
         },
 
         auth_status: {
 
             code: 200,
 
-            message: "Authorized",
+            message:
+                'Authorized',
 
-            session_token: "OTEyMzQ1Njc4MA=="
+            session_token:
+                Buffer
+                    .from('9123456780')
+                    .toString('base64')
         },
 
         renewal_scheme: {
 
             plans: [
 
-                { months: 1, price: 10 },
+                {
+                    months: 1,
+                    price: 10
+                },
 
-                { months: 6, price: 50 },
+                {
+                    months: 6,
+                    price: 50
+                },
 
-                { months: 12, price: 90 }
+                {
+                    months: 12,
+                    price: 90
+                }
             ]
         },
 
         api_endpoints: {
 
-            "X-API-Time": "https://besttv-424r.vercel.app/api/v1/getTime",
+            'X-API-Time':
+                `${BASE_URL}/api/v1/getTime`,
 
-            "X-API-Balance": "https://besttv-424r.vercel.app/api/v1/getUserBalance",
+            'X-API-Balance':
+                `${BASE_URL}/api/v1/getUserBalance`,
 
-            "X-API-Scheme": "https://besttv-424r.vercel.app/api/v1/getBesttvRenewalScheme",
+            'X-API-Scheme':
+                `${BASE_URL}/api/v1/getBesttvRenewalScheme`,
 
-            "X-API-Order": "https://besttv-424r.vercel.app/api/v1/payBesttvOrderXX",
+            'X-API-Order':
+                `${BASE_URL}/api/v1/payBesttvOrderXX`,
 
-            "X-API-Password": "https://besttv-424r.vercel.app/api/v1/setPaymentPassword"
+            'X-API-Password':
+                `${BASE_URL}/api/v1/setPaymentPassword`
         }
     };
-};
+}
 
 // ================= API ROUTES =================
 
+// AUTH
+
 app.get('/api/v1/auth', (req, res) => {
 
-    res.send(
-        encryptPayload(
-            getManagementData()
-        )
+    sendEncrypted(
+        res,
+        getManagementData()
     );
 });
+
+// TIME
 
 app.get('/api/v1/getTime', (req, res) => {
 
-    const timeData = {
+    sendEncrypted(res, {
 
-        server_time: getCurrentServerTime(),
+        server_time:
+            getCurrentServerTime(),
 
-        timestamp: Math.floor(Date.now() / 1000),
+        timestamp:
+            Math.floor(Date.now() / 1000),
 
-        timezone: "Africa/Tunis"
-    };
-
-    res.send(
-        encryptPayload(
-            timeData
-        )
-    );
+        timezone:
+            'Africa/Tunis'
+    });
 });
 
-app.get('/api/v1/getUserBalance', (req, res) => {
+// USER BALANCE
 
-    res.send(
-        encryptPayload(
-            getManagementData().user_profile
-        )
-    );
-});
+app.get(
+    '/api/v1/getUserBalance',
+    (req, res) => {
 
-app.get('/api/v1/getBesttvRenewalScheme', (req, res) => {
+        sendEncrypted(
+            res,
+            getManagementData()
+                .user_profile
+        );
+    }
+);
 
-    res.send(
-        encryptPayload(
-            getManagementData().renewal_scheme
-        )
-    );
-});
+// RENEWAL SCHEME
+
+app.get(
+    '/api/v1/getBesttvRenewalScheme',
+    (req, res) => {
+
+        sendEncrypted(
+            res,
+            getManagementData()
+                .renewal_scheme
+        );
+    }
+);
+
+// PAYMENT ORDER
+
+app.get(
+    '/api/v1/payBesttvOrderXX',
+    (req, res) => {
+
+        sendEncrypted(res, {
+
+            status: true,
+
+            order_id:
+                'ORD-' + Date.now(),
+
+            amount: '10',
+
+            currency: 'TND',
+
+            message:
+                'Order created successfully'
+        });
+    }
+);
+
+// PAYMENT PASSWORD
+
+app.get(
+    '/api/v1/setPaymentPassword',
+    (req, res) => {
+
+        sendEncrypted(res, {
+
+            status: true,
+
+            message:
+                'Password updated successfully'
+        });
+    }
+);
+
+// API ROOT
 
 app.get('/api/v1', (req, res) => {
 
@@ -229,11 +362,14 @@ app.get('/api/v1', (req, res) => {
 
     res.json({
 
-        status: "success",
+        status: 'success',
 
-        message: "BEST-TV PRO API V1 is READY"
+        message:
+            'BEST-TV PRO API V1 is READY'
     });
 });
+
+// ROOT
 
 app.get('/', (req, res) => {
 
@@ -242,50 +378,80 @@ app.get('/', (req, res) => {
     );
 });
 
-// ================= SERVER =================
+// ================= HTTP SERVER =================
 
-const port = process.env.PORT || 60000;
+const port =
+    process.env.PORT || 60000;
 
-const server = http.createServer(app);
+const server =
+    http.createServer(app);
 
-// ================= WEBSOCKET SERVER =================
+// ================= WEBSOCKET =================
 
-const wss = new WebSocket.Server({
+const wss =
+    new WebSocket.Server({
 
-    server,
+        server,
 
-    path: '/live'
-});
-
-wss.on('connection', (ws, req) => {
-
-    console.log(
-        "Connection established successfully"
-    );
-
-    ws.send(JSON.stringify({
-
-        type: "welcome",
-
-        data: "authenticated"
-    }));
-
-    ws.on('message', (message) => {
-
-        ws.send(JSON.stringify({
-
-            status: true,
-
-            echo: message.toString()
-        }));
+        path: '/live'
     });
-});
+
+wss.on(
+    'connection',
+    (ws) => {
+
+        console.log(
+            'WebSocket Connected'
+        );
+
+        ws.send(
+            JSON.stringify({
+
+                type: 'welcome',
+
+                data:
+                    'authenticated'
+            })
+        );
+
+        ws.on(
+            'message',
+            (message) => {
+
+                ws.send(
+                    JSON.stringify({
+
+                        status: true,
+
+                        echo:
+                            message.toString()
+                    })
+                );
+            }
+        );
+
+        ws.on(
+            'error',
+            (err) => {
+
+                console.error(
+                    'WS Error:',
+                    err.message
+                );
+            }
+        );
+    }
+);
 
 // ================= START SERVER =================
 
-server.listen(port, '0.0.0.0', () => {
+server.listen(
+    port,
+    '0.0.0.0',
+    () => {
 
-    console.log(
-        `Server is running on port ${port}`
-    );
-});
+        console.log(
+            `BEST-TV API running on ${port}`
+        );
+    }
+);
