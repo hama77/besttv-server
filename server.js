@@ -82,7 +82,7 @@ function getManagementData() {
 function getAuthPayload() {
     const server = getManagementData();
 
-    const uid = "9123456780";
+    const uid = "0123456789";
     const now = Math.floor(Date.now() / 1000);
     const expire = now + (30 * 24 * 60 * 60);
 
