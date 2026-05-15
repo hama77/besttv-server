@@ -6,8 +6,6 @@ const crypto = require('crypto');
 
 const app = express();
 
-// ================= CORS =================
-
 app.use(cors({
     origin: '*',
     exposedHeaders: [
@@ -18,44 +16,42 @@ app.use(cors({
 
 app.use(express.json());
 
-// ================= GENERAL SETTINGS =================
-
 const MY_IP = '126.222.161.191';
 
 const BASE_URL =
     'https://besttv-424r.vercel.app';
 
+// Primary Token
+
 const DYNAMIC_OID =
-    '02b9c27e5b2wuy9e3z4iaqxv1c8htg6a';
+    'c167de379a78e72f9890945769fa2c3c';
 
-// ================= AES SETTINGS =================
+// Secondary Token
 
-// AES-192 requires 24-byte key
+const SECOND_TOKEN =
+    '5ac5a72c983ccecb047a5cb48761885c';
 
-const AES_SECRET =
+// AES Configuration
+
+const AES_KEY =
     'KMdaF2HeNUT0ye6N3LVFOMso';
 
-const AES_KEY = crypto
-    .createHash('sha256')
-    .update(AES_SECRET)
-    .digest()
-    .slice(0, 24);
+const AES_IV =
+    '45760761';
 
-// Stable 16-byte IV
-
-const AES_IV = Buffer.alloc(16, 0);
-
-// ================= TIME =================
+// Current Server Time
 
 function getCurrentServerTime() {
 
-    return new Date()
+    const now = new Date();
+
+    return now
         .toISOString()
-        .replace('T', ' ')
+        .replace(/T/, ' ')
         .replace(/\..+/, '');
 }
 
-// ================= ENCRYPTION =================
+// Encryption
 
 function encryptPayload(data) {
 
@@ -64,11 +60,25 @@ function encryptPayload(data) {
         const payload =
             JSON.stringify(data);
 
+        const keyBuffer =
+            crypto.scryptSync(
+                AES_KEY,
+                SECOND_TOKEN,
+                24
+            );
+
+        const ivBuffer =
+            Buffer.alloc(16, 0);
+
+        Buffer
+            .from(AES_IV, 'utf8')
+            .copy(ivBuffer);
+
         const cipher =
             crypto.createCipheriv(
                 'aes-192-cbc',
-                AES_KEY,
-                AES_IV
+                keyBuffer,
+                ivBuffer
             );
 
         let encrypted =
@@ -94,7 +104,7 @@ function encryptPayload(data) {
     }
 }
 
-// ================= RESPONSE HELPER =================
+// Response Helper
 
 function sendEncrypted(res, data) {
 
@@ -108,21 +118,9 @@ function sendEncrypted(res, data) {
             'text/plain'
         );
 
-        res.setHeader(
-            'Cache-Control',
-            'no-store'
-        );
-
-        res.setHeader(
-            'Server',
-            'nginx'
-        );
-
         res.status(200).send(encrypted);
 
     } catch (error) {
-
-        console.error(error);
 
         res.status(500).json({
 
@@ -134,9 +132,9 @@ function sendEncrypted(res, data) {
     }
 }
 
-// ================= MANAGEMENT DATA =================
+// Management Data
 
-function getManagementData() {
+const getManagementData = () => {
 
     return {
 
@@ -150,7 +148,9 @@ function getManagementData() {
 
             path: '/live',
 
-            oid: DYNAMIC_OID
+            oid: DYNAMIC_OID,
+
+            db_token: SECOND_TOKEN
         },
 
         system_info: {
@@ -159,22 +159,13 @@ function getManagementData() {
                 getCurrentServerTime(),
 
             timestamp:
-                Math.floor(Date.now() / 1000),
-
-            timezone:
-                'Africa/Tunis'
+                Math.floor(Date.now() / 1000)
         },
 
         user_profile: {
 
             user_id:
                 '9123456780',
-
-            balance:
-                '100.00',
-
-            currency:
-                'TND',
 
             subscription_type:
                 'Premium',
@@ -183,7 +174,10 @@ function getManagementData() {
                 '2027-01-01',
 
             status:
-                'active'
+                'active',
+
+            token_v1:
+                SECOND_TOKEN
         },
 
         app_settings: {
@@ -191,14 +185,8 @@ function getManagementData() {
             maintenance_mode:
                 false,
 
-            force_update:
-                false,
-
             min_version:
-                '3.0.0',
-
-            announcement:
-                'Welcome to BEST-TV PRO'
+                '3.0.0'
         },
 
         auth_status: {
@@ -206,33 +194,7 @@ function getManagementData() {
             code: 200,
 
             message:
-                'Authorized',
-
-            session_token:
-                Buffer
-                    .from('9123456780')
-                    .toString('base64')
-        },
-
-        renewal_scheme: {
-
-            plans: [
-
-                {
-                    months: 1,
-                    price: 10
-                },
-
-                {
-                    months: 6,
-                    price: 50
-                },
-
-                {
-                    months: 12,
-                    price: 90
-                }
-            ]
+                'Authorized'
         },
 
         api_endpoints: {
@@ -253,7 +215,7 @@ function getManagementData() {
                 `${BASE_URL}/api/v1/setPaymentPassword`
         }
     };
-}
+};
 
 // ================= API ROUTES =================
 
@@ -355,17 +317,12 @@ app.get(
 
 app.get('/api/v1', (req, res) => {
 
-    res.setHeader(
-        'X-Forwarded-For',
-        MY_IP
-    );
-
     res.json({
 
         status: 'success',
 
         message:
-            'BEST-TV PRO API V1 is READY'
+            'BEST-TV API V1 READY'
     });
 });
 
@@ -374,11 +331,11 @@ app.get('/api/v1', (req, res) => {
 app.get('/', (req, res) => {
 
     res.send(
-        'BEST-TV PRO Cloud API is LIVE!'
+        'BEST-TV PRO Cloud API is LIVE with Dual-Token Support!'
     );
 });
 
-// ================= HTTP SERVER =================
+// HTTP SERVER
 
 const port =
     process.env.PORT || 60000;
@@ -386,7 +343,7 @@ const port =
 const server =
     http.createServer(app);
 
-// ================= WEBSOCKET =================
+// WEBSOCKET SERVER
 
 const wss =
     new WebSocket.Server({
@@ -400,17 +357,16 @@ wss.on(
     'connection',
     (ws) => {
 
-        console.log(
-            'WebSocket Connected'
-        );
-
         ws.send(
             JSON.stringify({
 
                 type: 'welcome',
 
                 data:
-                    'authenticated'
+                    'authenticated',
+
+                auth_key:
+                    SECOND_TOKEN
             })
         );
 
@@ -429,21 +385,10 @@ wss.on(
                 );
             }
         );
-
-        ws.on(
-            'error',
-            (err) => {
-
-                console.error(
-                    'WS Error:',
-                    err.message
-                );
-            }
-        );
     }
 );
 
-// ================= START SERVER =================
+// START SERVER
 
 server.listen(
     port,
@@ -451,7 +396,7 @@ server.listen(
     () => {
 
         console.log(
-            `BEST-TV API running on ${port}`
+            `Server running on port ${port} with Token: ${SECOND_TOKEN}`
         );
     }
 );
